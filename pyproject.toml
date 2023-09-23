@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "cvrp-benchmarker"
+version = "0.1.0"
+description = "Automated HPC-ready benchmarking for cvrp solvers"
+authors = ["Andrey Prokhorov <aaprokhorov1@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+optuna = "^3.3.0"
+pandas = "^2.1.0"
+matplotlib = "^3.8.0"
+vrplib = "^1.2.0"
+dask = {extras = ["distributed"], version = "^2023.9.2"}
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.4.2"
+alns = "^5.3.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
