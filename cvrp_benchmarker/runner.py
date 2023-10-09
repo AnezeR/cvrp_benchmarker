@@ -6,7 +6,7 @@ import numpy
 from typing import NamedTuple, Union, Sequence, Optional, Mapping
 from numpy.typing import NDArray
 
-from .problem import CvrpProblemDescription
+from cvrp_benchmarker.problem import CvrpProblemDescription
 
 
 @dataclass(frozen=True)
@@ -43,8 +43,6 @@ class HyperParameter:
             )
 
 
-cost_history_entry = numpy.dtype([('time', numpy.float64), ('iteration', numpy.int64), ('cost', numpy.float64)])
-
 class TrustedRunResult(NamedTuple):
     """Result of an algorithms's run on a problem, accepted with no checks
 
@@ -52,6 +50,9 @@ class TrustedRunResult(NamedTuple):
     :type cost: float
     """
     cost: float
+
+
+cost_history_entry = numpy.dtype([('time', numpy.float64), ('iteration', numpy.int64), ('cost', numpy.float64)])
 
 class CheckedRunResult(TrustedRunResult):
     """Result of an algorithms's run on a problem, checked for validity

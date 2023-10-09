@@ -2,43 +2,25 @@ import os
 from contextlib import nullcontext
 
 from typing import Optional, Sequence, Type
-from numpy.typing import NDArray
 
-from math import isclose
-
-import optuna
+import threading
 from concurrent.futures import ThreadPoolExecutor
-from dask.distributed import Client, LocalCluster
 from functools import partial
 
-from multiprocessing import Pool
-import threading
+import optuna
+from dask.distributed import Client
 
 import numpy
+from numpy.typing import NDArray
 import pandas
 import vrplib
 
-from matplotlib import pyplot as plt, patches
-from matplotlib.path import Path
+from cvrp_benchmarker.problem import VrplibProblem
+from cvrp_benchmarker.runner import Runner, CheckedRunResult, TrustedRunResult
+from cvrp_benchmarker.exceptions import TargetTimeExceededException, UnknownResultFormat
+from cvrp_benchmarker._utility import check_results, save_cost_history, draw_solution
+from cvrp_benchmarker.cluster_pool import ClusterPool
 
-from .problem import VrplibProblem
-from .runner import Runner, CheckedRunResult, TrustedRunResult
-
-
-class NotAllCustomersException(optuna.exceptions.TrialPruned):
-    pass
-
-class CapacitiesExceededException(optuna.exceptions.TrialPruned):
-    pass
-
-class WrongCostException(optuna.exceptions.TrialPruned):
-    pass
-
-class TargetTimeExceededException(optuna.exceptions.TrialPruned):
-    pass
-
-class UnknownResultFormat(optuna.exceptions.TrialPruned):
-    pass
 
 class Benchmarker:
     """Class that handles hyperparameter tuning and instance managements.
@@ -137,11 +119,6 @@ class Benchmarker:
             draw_solutions: bool = False,
             draw_cost_histories: bool = False
     ) -> NDArray[numpy.float64]:
-        """Runs all the problems with a trial
-        :param runner: Runner to run
-        :param trial: Trial to use
-        :returns: Deviation from optimal
-        """
         print(f"Starting run for {runner.name}")
         deviations = numpy.zeros(len(self.problems))
         hyperparameters = None
@@ -150,10 +127,10 @@ class Benchmarker:
                 hyperparameter.name: hyperparameter.get(trial)
                 for hyperparameter in runner.hyperparameters
             }
+        
         futures = client.map(
-            runner.run, [problem.description for problem in self.problems],
-            target_time=self.target_time,
-            hyperparameters=hyperparameters
+            partial(runner.run, target_time=self.target_time, hyperparameters=hyperparameters),
+            [problem.description for problem in self.problems],
         )
         for problem, result, problem_idx in zip(self.problems, client.gather(futures), range(len(self.problems))):
             if isinstance(result, (float, int)):
@@ -163,11 +140,11 @@ class Benchmarker:
             elif isinstance(result, CheckedRunResult):
                 run_result, solution, cost_history = result
                 if check_solutions:
-                    self.__check_results(runner.name, problem, run_result, solution)
+                    check_results(runner.name, problem, run_result, solution)
                 if draw_solutions:
-                    self.__draw_solution(runner.name, run_result, problem, solution)
+                    draw_solution(runner.name, run_result, problem, solution, self.history_plots_dir)
                 if draw_cost_histories:
-                    self.__save_cost_history(runner.name, problem, cost_history)
+                    save_cost_history(runner.name, problem, cost_history, self.solution_plots_dir)
                     
                 run_result_idx = cost_history['time'].searchsorted(self.target_time, 'right') - 1
                 if run_result_idx == -1:
@@ -181,60 +158,10 @@ class Benchmarker:
         
         return deviations
 
-    def __check_results(self, runner_name: str, problem: VrplibProblem, dist: float, solution: list[list[int]]) -> bool:
-        route_caps = [sum(problem.description.demands[customer] for customer in route) for route in solution]
-        exceeded_caps = [cap > problem.description.capacity for cap in route_caps]
-        if any(exceeded_caps):
-            exceed_indices = [idx for idx, exc in enumerate(exceeded_caps) if exc]
-            raise CapacitiesExceededException(f"{runner_name}: Capacities are exceeded for {problem.name} in {exceed_indices}")
-
-        all_customers = set(range(0, problem.description.n_customers))
-        customers_in_solution = set([customer for path in solution for customer in path])
-        if all_customers != customers_in_solution:
-            missing = all_customers - customers_in_solution
-            raise NotAllCustomersException(f"{runner_name}: Not all customers found for {problem.name}. Missing: {missing}")
-
-        distances = problem.description.edge_weights
-        good_dist = sum(sum(distances[a][b] for a, b in zip(path[1:], path[:-1])) for path in solution)
-        if not isclose(dist, good_dist):
-            raise WrongCostException(f"{runner_name}: Solution is not close to actual distances. Actual: {good_dist}, found: {dist}")
-
-        return True
-
-    def __save_cost_history(self, runner_name: str, problem: VrplibProblem, history: list[float, float]):
-        if history is None:
-            return
-        history_df = pandas.DataFrame(history)
-        history_df.columns = ['time', 'iter', 'cost']
-        history_df = history_df.set_index('time')
-
-        history_df.to_csv(os.path.join(self.history_plots_dir, f'{problem.name}.csv'))
-
-        history_df['cost'].plot(title=f'Cost history for "{runner_name}" on problem {problem.name}')
-        plt.savefig(os.path.join(self.history_plots_dir, f"{problem.name}.png"))
-        plt.close()
-
-    def __draw_solution(self, runner_name: str, dist: float, problem: VrplibProblem, solution: list[list[int]]):
-        fig, ax = plt.subplots()
-        ax.set_title(f'{problem.name} solved by "{runner_name}" with cost {dist:.3f}')
-        numpy.random.seed(0)
-        for path in solution:
-            path = [problem.node_coord[node] for node in path]
-            codes = [Path.MOVETO] + [Path.LINETO for _ in range(1, len(path))]
-            path = Path(path, codes)
-            patch = patches.PathPatch(path, edgecolor=numpy.random.rand(3, ), facecolor='none', lw=2)
-            ax.add_patch(patch)
-        ax.set_xlim(0, 1000)
-        ax.set_ylim(0, 1000)
-        plt.savefig(os.path.join(self.solution_plots_dir, f"{problem.name}.png"))
-        plt.close(fig)
-
     def tune_parameters(
             self,
             n_trials: int,
-            n_jobs: int = -1,
-            concurrency: int = -1,
-            cluster = None,
+            cluster_pool: Optional[ClusterPool],
     ) -> None:
         """Tunes hyperparameters for all algorithms with optuna
         :param n_trials: Number of trials for optuna to run
@@ -242,19 +169,11 @@ class Benchmarker:
         :param concurrency: Number of concurrent calculations. Default: minimum of n_jobs and the number of runners
         :param cluster: A cluster to client a dusk client on. Default: None (Local cluster)
         """
-        if concurrency == -1:
-            concurrency = len(self.runners)
-        if concurrency > len(self.runners):
-            print(f"More concurrency ({concurrency}) than the number of runners {len(self.runners)}. Defaulting to the number of runners")
-            concurrency = len(self.runners)
-        if concurrency > n_jobs:
-            print(f"More concurrency ({concurrency}) than the number of jobs {n_jobs}. Defaulting to the number of jobs")
-            concurrency = n_jobs
 
         def launch_study(client: Client, runner: Runner, study: optuna.Study):
             trial = study.ask()
             try:
-                trial_results: NDArray[numpy.float64] = self._run_trial(client, trial, runner)
+                trial_results: NDArray[numpy.float64] = self._run_trial(client, trial, runner, check_solutions=True)
                 study.tell(
                     trial=trial,
                     values=trial_results.mean(),
@@ -266,20 +185,19 @@ class Benchmarker:
             except Exception:
                 study.tell(trial=trial, state=optuna.trial.TrialState.FAIL)
         with (
-            LocalCluster(
-                'tcp://localhost:9895',
-                n_workers=n_jobs,
-                processes=True,
-                threads_per_worker=1
-            ) if cluster is None else nullcontext(cluster) as cluster,
-            Client(cluster, asynchronous=True) as client,
-            ThreadPoolExecutor(concurrency) as executor
+            ClusterPool() if cluster_pool is None else nullcontext(cluster_pool) as cluster_pool,
+            ThreadPoolExecutor(cluster_pool.size()) as executor,
         ):
             futures = []
-            for _ in range(n_trials):
+            for i in range(n_trials):
                 for runner, study in self.studies:
                     if study is not None:
-                        futures.append(executor.submit(launch_study, client, runner, study))
+                        futures.append(executor.submit(
+                            launch_study,
+                            cluster_pool.next(),
+                            runner,
+                            study
+                        ))
             
             for future in futures:
                 future.result()
@@ -287,9 +205,7 @@ class Benchmarker:
     def benchmark(
             self,
             n_runs: int,
-            n_jobs: int = -1,
-            concurrency: int = -1,
-            cluster = None,
+            cluster_pool: Optional[ClusterPool],
             load_checkpoint: bool = True,
     ) -> pandas.DataFrame:
         """Benchmarks the problems with *n_runs* consecutive runs.
@@ -315,15 +231,6 @@ class Benchmarker:
                 columns=[runner.name for runner in self.runners]
             )
 
-        if concurrency == -1:
-            concurrency = len(self.runners)
-        if concurrency > len(self.runners):
-            print(f"More concurrency ({concurrency}) than the number of runners {len(self.runners)}. Defaulting to the number of runners")
-            concurrency = len(self.runners)
-        if concurrency > n_jobs:
-            print(f"More concurrency ({concurrency}) than the number of jobs {n_jobs}. Defaulting to the number of jobs")
-            concurrency = n_jobs
-
         def launch_run(client: Client, runner: Runner, study: Optional[optuna.Study], run_num: int):
             trial = None
             if study is not None:
@@ -337,20 +244,17 @@ class Benchmarker:
                 deviations_df[runner.name][:][run_num-1] = trial_results
                 deviations_df.to_csv(checkpoint_file)
         with (
-            LocalCluster(
-                'tcp://localhost:9895',
-                n_workers=n_jobs,
-                processes=True,
-                threads_per_worker=1
-            ) if cluster is None else nullcontext(cluster) as cluster,
-            Client(cluster, asynchronous=True) as client,
-            ThreadPoolExecutor(concurrency) as executor
+            ClusterPool() if cluster_pool is None else nullcontext(cluster_pool) as cluster_pool,
+            ThreadPoolExecutor(cluster_pool.size()) as executor,
         ):
             futures = []
             for i in range(1, n_runs + 1):
                 for runner, study in self.studies:
-                    if (not load_checkpoint) or (load_checkpoint and pandas.isna(deviations_df[runner.name][self.problems[0].name][i])):
-                        futures.append(executor.submit(launch_run, client, runner, study, i))
+                    if (not load_checkpoint) or (
+                            load_checkpoint and
+                            pandas.isna(deviations_df[runner.name][self.problems[0].name][i])
+                        ):
+                        futures.append(executor.submit(launch_run, cluster_pool.next(), runner, study, i))
             for future in futures:
                 future.result()
 

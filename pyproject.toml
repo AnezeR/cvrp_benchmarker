@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cvrp-benchmarker"
-version = "0.1.0"
+version = "0.1.1"
 description = "Automated HPC-ready benchmarking for cvrp solvers"
 authors = ["Andrey Prokhorov <aaprokhorov1@gmail.com>"]
 readme = "README.md"
@@ -12,6 +12,7 @@ pandas = "^2.1.0"
 matplotlib = "^3.8.0"
 vrplib = "^1.2.0"
 dask = {extras = ["distributed"], version = "^2023.9.2"}
+dask-jobqueue = "^0.8.2"
 
 
 [tool.poetry.group.test.dependencies]

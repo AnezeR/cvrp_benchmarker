@@ -9,10 +9,10 @@ from alns.accept import SimulatedAnnealing
 from alns.select import RandomSelect
 from alns.stop import MaxRuntime
 
-from cvrp_benchmarker import Runner, CvrpProblemDescription, HyperParameter, TrustedRunResult, CheckedRunResult, cost_history_entry
+import cvrp_benchmarker as bench
 
 
-class SISR_Runner(Runner):
+class SISR_Runner(bench.Runner):
     @classmethod
     @property
     def name(cls) -> str:
@@ -20,20 +20,20 @@ class SISR_Runner(Runner):
     
     @classmethod
     @property
-    def hyperparameters(cls) -> Optional[Sequence[HyperParameter]]:
+    def hyperparameters(cls) -> Optional[Sequence[bench.HyperParameter]]:
         return [
-            HyperParameter('iter_num', (100, 1_000_000)),
-            HyperParameter('max_string_removals', (1, 5)),
-            HyperParameter('max_string_size', (1, 20)),
-            HyperParameter('blink_rate', (0., 0.1), log=True),
-            HyperParameter('split_rate', (0., 1.)),
-            HyperParameter('split_depth', (0., 0.1), log=True),
+            bench.HyperParameter('iter_num', (100, 1_000_000)),
+            bench.HyperParameter('max_string_removals', (1, 5)),
+            bench.HyperParameter('max_string_size', (1, 20)),
+            bench.HyperParameter('blink_rate', (0., 0.1), log=True),
+            bench.HyperParameter('split_rate', (0., 1.)),
+            bench.HyperParameter('split_depth', (0., 0.1), log=True),
         ]
     
     @classmethod
     def run(
             cls,
-            problem: CvrpProblemDescription,
+            problem: bench.CvrpProblemDescription,
             target_time: float,
             hyperparameters: Optional[dict[str, Union[float, int]]]
     ) -> (float, list[list[int]], list[float]):
@@ -274,12 +274,12 @@ class SISR_Runner(Runner):
             for route in solution.routes
         ]
 
-        cost_history = np.empty(len(result.statistics.objectives), dtype=cost_history_entry)
+        cost_history = np.empty(len(result.statistics.objectives), dtype=bench.cost_history_entry)
         cost_history['time'] = np.concatenate([[0], np.cumsum(result.statistics.runtimes)]).T
         cost_history['iteration'] = np.arange(0, result.statistics.objectives.size)
         cost_history['cost'] = result.statistics.objectives
 
-        return CheckedRunResult(
+        return bench.CheckedRunResult(
             cost=objective,
             routes=routes_to_export,
             cost_history=cost_history
