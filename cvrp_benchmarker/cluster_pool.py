@@ -47,19 +47,11 @@ class ClusterPool:
         
         self.__current_cluster = 0
     
-    def __enter__(
-        self,
-        clusters: Optional[Sequence[Union[LocalCluster, JobQueueCluster]]],
-        cluster_type: Optional[Union[Type[LocalCluster], Type[JobQueueCluster]]],
-        n_clusters: Optional[int],
-        workers_per_cluster: Optional[int],
-        **kwargs
-    ):
-        self.__init__(clusters, cluster_type, n_clusters, workers_per_cluster, kwargs)
+    def __enter__(self):
         return self
     
     def close(self):
-        for cluster, client in (self.__clusters, self.__clients):
+        for cluster, client in zip(self.__clusters, self.__clients):
             client.close()
             cluster.close() 
     

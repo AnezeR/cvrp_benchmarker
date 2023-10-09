@@ -38,7 +38,7 @@ class HygeseRunner(bench.Runner):
             bench.HyperParameter('mu', (5, 200)),
             bench.HyperParameter('lambda_', (1, 200)),
             bench.HyperParameter('el', (0., 1.)),
-            bench.HyperParameter('nc', (0., 0.25), log=True),
+            bench.HyperParameter('nc', (0, 0.25)),
             bench.HyperParameter('h', (0., 1.))
         ]
     

@@ -131,6 +131,7 @@ def test_benchmarking():
             return 'mock_runner3'
         @classmethod
         def run(cls, *args, **kwargs):
+            print("tehe")
             return 12
     with TemporaryDirectory() as tempdir:
         benchmarker = bench.Benchmarker(
@@ -140,4 +141,5 @@ def test_benchmarking():
             study_storage=f'sqlite:///{tempdir}/cvrp_parameter_tuning.db',
             target_time=5, # 5s runtime is chosen to be bigger than overhead
         )
-        benchmarker.benchmark(n_runs=4, cluster_pool=bench.ClusterPool(n_clusters=4))
+        with bench.ClusterPool(n_clusters=4) as cluster_pool:
+            benchmarker.benchmark(n_runs=4, cluster_pool=cluster_pool, load_checkpoint=False)

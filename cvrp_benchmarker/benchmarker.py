@@ -43,8 +43,6 @@ class Benchmarker:
     ):
         """
         :param runners: Runners to be benchmarked
-        :param client: Dask client to run on
-            Default: None (inititalizes a local client)
         :param target_time: Target time for benchmarking in seconds
             Default: 60
         :param study_storage: Storage for an optuna study.
@@ -161,7 +159,7 @@ class Benchmarker:
     def tune_parameters(
             self,
             n_trials: int,
-            cluster_pool: Optional[ClusterPool],
+            cluster_pool: Optional[ClusterPool] = None,
     ) -> None:
         """Tunes hyperparameters for all algorithms with optuna
         :param n_trials: Number of trials for optuna to run
@@ -205,7 +203,7 @@ class Benchmarker:
     def benchmark(
             self,
             n_runs: int,
-            cluster_pool: Optional[ClusterPool],
+            cluster_pool: Optional[ClusterPool] = None,
             load_checkpoint: bool = True,
     ) -> pandas.DataFrame:
         """Benchmarks the problems with *n_runs* consecutive runs.
