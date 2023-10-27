@@ -16,7 +16,7 @@
 \graphicspath{ {images/} }
 
 \usepackage{csquotes}
-\usepackage[style=authoryear]{biblatex}
+\usepackage[style=gost-authoryear-min,movenames=false]{biblatex}
 \addbibresource{citations.bib}
 
 \title{Автоматизированный бенчмаркинг алгоритмов решения CVRP}
@@ -43,7 +43,7 @@ CVRP - это один из базовых вариантов задачи
         width=0.7\textwidth
     ]{images/cvrp_example.png}
     \caption{
-        Решение, задачи из
+        Решение задачи из
         набора X \autocite{uchoaNewBenchmarkInstances2017}
         алгоритмом HGS \autocite{vidalHybridGeneticSearch2022}.
         \label{cvrp_example} 
