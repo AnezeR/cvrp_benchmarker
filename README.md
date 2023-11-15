@@ -6,7 +6,7 @@ both locally and in highly parallel distributed settings, such as HPC.
 
 Please note, that this repository in its current shate is under active
 development, is largely untested, requires attribution if used and
-derivative work is prohibited.
+derivative work is prohibited. You can read more on the [CC website](https://creativecommons.org/licenses/by-nd/4.0)
 
 These terms will be changed after a paper is published.
 
