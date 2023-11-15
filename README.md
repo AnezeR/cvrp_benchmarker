@@ -4,7 +4,7 @@
 perform hyperparameter optimizaiton and manage cvrp problem instances 
 both locally and in highly parallel distributed settings, such as HPC.
 
-Please note, that this repository in its current shate is under active
+Please note, that this repository in its current state is under active
 development, is largely untested, requires attribution if used and
 derivative work is prohibited. You can read more on the [CC website](https://creativecommons.org/licenses/by-nd/4.0)
 
