@@ -4,6 +4,12 @@
 perform hyperparameter optimizaiton and manage cvrp problem instances 
 both locally and in highly parallel distributed settings, such as HPC.
 
+Please note, that this repository in its current shate is under active
+development, is largely untested, requires attribution if used and
+derivative work is prohibited.
+
+These terms will be changed after a paper is published.
+
 ## Installation
 
 Install cvrp-benchmarker from source
