@@ -1,5 +1,6 @@
 # Scpecific to CVRP_benchmarker
 .cvrp_benchmarker_checkpoints/
+.cvrp_problems/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

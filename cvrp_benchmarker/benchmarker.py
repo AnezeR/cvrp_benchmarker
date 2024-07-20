@@ -30,7 +30,7 @@ class Benchmarker:
             self,
             runners: Sequence[Type[Runner]],
             target_time: int = 60,
-            study_storage: str = 'sqlite:///cvrp_parameter_tuning.db',
+            study_storage: Optional[str] = None,
             study_reset: bool = False,
             no_study_storage: bool = False,
             study_sampler: optuna.samplers.BaseSampler = optuna.samplers.NSGAIIISampler,
@@ -62,7 +62,7 @@ class Benchmarker:
         :param plot_solutions: Plots solutions if True
             Default: True (Only plots if plots_dir is not None)
         """
-        
+
         self.runners = runners
         
         if problem_names is None:
@@ -92,6 +92,8 @@ class Benchmarker:
                     if not os.path.exists(runner_history_dir):
                         os.mkdir(runner_history_dir)
         
+        if study_storage is None:
+            study_storage = f'sqlite:///cvrp_parameter_tuning_{target_time}.db'  
         self.studies = [
             (runner, optuna.create_study(
                 study_name=runner.name,
@@ -214,7 +216,7 @@ class Benchmarker:
         :param cluster: A cluster to client a dusk client on. Default: None (Local cluster)
         :param load_checkpoint: Attempt to load the checkpoint file or not. Default: True
         """
-        checkpoint_filename = f"benchmark_{'_'.join(runner.name for runner in self.runners)}_{n_runs}.csv"
+        checkpoint_filename = f"benchmark_{'_'.join(runner.name for runner in self.runners)}_{n_runs}_{self.target_time}s.csv"
         checkpoint_file = os.path.join(self.checkpoint_dir, checkpoint_filename)
 
         csv_output_lock = threading.Lock()
@@ -239,7 +241,7 @@ class Benchmarker:
             
             trial_results: NDArray[numpy.float64] = self._run_trial(client, trial, runner)
             with csv_output_lock:
-                deviations_df[runner.name][:][run_num-1] = trial_results
+                deviations_df.loc[(slice(None), run_num), runner.name] = trial_results
                 deviations_df.to_csv(checkpoint_file)
         with (
             ClusterPool() if cluster_pool is None else nullcontext(cluster_pool) as cluster_pool,
